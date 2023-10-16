@@ -4,7 +4,7 @@
 #include<time.h>
 #include<string.h>
 #include<pthread.h>
-#include"utility.h"
+#include"queue.h"
 #define hp_seller_count 1
 #define mp_seller_count 3
 #define lp_seller_count 6
@@ -17,7 +17,7 @@
 typedef struct sell_arg_struct {
 	char seller_no;
 	char seller_type;
-	queue *seller_queue;
+	Queue *seller_queue;
 } sell_arg;
 
 typedef struct customer_struct {
@@ -44,12 +44,12 @@ pthread_mutex_t condition_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  condition_cond  = PTHREAD_COND_INITIALIZER;
 
 //Function Defination
-void display_queue(queue *q);
+void display_queue(Queue *q);
 void create_seller_threads(pthread_t *thread, char seller_type, int no_of_sellers);
 void wait_for_thread_to_serve_current_time_slice();
 void wakeup_all_seller_threads();
 void *sell(void *);
-queue * generate_customer_queue(int);
+Queue * generate_customer_queue(int);
 int compare_by_arrival_time(void * data1, void * data2);
 int findAvailableSeat(char seller_type);
 
@@ -172,8 +172,8 @@ void create_seller_threads(pthread_t *thread, char seller_type, int no_of_seller
 	}
 }
 
-void display_queue(queue *q) {
-	for(node *ptr = q->head;ptr!=NULL;ptr=ptr->next) {
+void display_queue(Queue *q) {
+	for(Node *ptr = q->front;ptr!=NULL;ptr=ptr->next) {
 		customer *cust = (customer * )ptr->data;
 		printf("[%d,%d]",cust->cust_no,cust->arrival_time);
 	}
@@ -203,8 +203,8 @@ void wakeup_all_seller_threads() {
 void *sell(void *t_args) {
 	//Initializing thread
 	sell_arg *args = (sell_arg *) t_args;
-	queue * customer_queue = args->seller_queue;
-	queue * seller_queue = create_queue();
+	Queue * customer_queue = args->seller_queue;
+	Queue * seller_queue = createQueue();
 	char seller_type = args->seller_type;
 	int seller_no = args->seller_no + 1;
 	
@@ -236,7 +236,7 @@ void *sell(void *t_args) {
 		// Sell
 		if(sim_time == simulation_duration) break;
 		//All New Customer Came
-		while(customer_queue->size > 0 && ((customer *)customer_queue->head->data)->arrival_time <= sim_time) {
+		while(customer_queue->size > 0 && ((customer *)customer_queue->front->data)->arrival_time <= sim_time) {
 			customer *temp = (customer *) dequeue (customer_queue);
 			enqueue(seller_queue,temp);
 			printf("00:%02d %c%d Customer No %c%d%02d arrived\n",sim_time,seller_type,seller_no,seller_type,seller_no,temp->cust_no);
@@ -305,6 +305,7 @@ void *sell(void *t_args) {
 	pthread_mutex_lock(&thread_count_mutex);
 	active_thread--;
 	pthread_mutex_unlock(&thread_count_mutex);
+	return NULL;
 }
 
 int findAvailableSeat(char seller_type){
@@ -360,8 +361,8 @@ int findAvailableSeat(char seller_type){
 	return -1;
 }
 
-queue * generate_customer_queue(int N){
-	queue * customer_queue = create_queue();
+Queue * generate_customer_queue(int N){
+	Queue * customer_queue = createQueue();
 	char cust_no = 0;
 	while(N--) {
 		customer *cust = (customer *) malloc(sizeof(customer));
@@ -372,7 +373,7 @@ queue * generate_customer_queue(int N){
 		cust_no++;
 	}
 	sort(customer_queue, compare_by_arrival_time);
-	node * ptr = customer_queue->head;
+	Node * ptr = customer_queue->front;
 	cust_no = 0;
 	while(ptr!=NULL) {
 		cust_no ++;
