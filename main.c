@@ -43,7 +43,7 @@ pthread_mutex_t thread_completion_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t condition_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  condition_cond  = PTHREAD_COND_INITIALIZER;
 
-//Function Defination
+//Function Definitions
 void display_queue(Queue *q);
 void create_seller_threads(pthread_t *thread, char seller_type, int no_of_sellers);
 void wait_for_thread_to_serve_current_time_slice();
@@ -51,7 +51,7 @@ void wakeup_all_seller_threads();
 void *sell(void *);
 Queue * generate_customer_queue(int);
 int compare_by_arrival_time(void * data1, void * data2);
-int findAvailableSeat(char seller_type);
+int fetchEmptySeatIndexBySellerType(char seller_type);
 
 int thread_count = 0;
 int threads_waiting_for_clock_tick = 0;
@@ -269,7 +269,7 @@ void *sell(void *t_args) {
 				pthread_mutex_lock(&reservation_mutex);
 
 				// Find seat
-				int seatIndex = findAvailableSeat(seller_type);
+				int seatIndex = fetchEmptySeatIndexBySellerType(seller_type);
 				if(seatIndex == -1) {
 					printf("00:%02d %c%d Customer No %c%d%02d has been told Concert Sold Out.\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
 				} else {
@@ -308,57 +308,72 @@ void *sell(void *t_args) {
 	return NULL;
 }
 
-int findAvailableSeat(char seller_type){
-	int seatIndex = -1;
+int isSeatAvailable(int row, int col) {
+	return (strcmp(seat_matrix[row][col],"-") == 0);
+}
 
-	if(seller_type == 'H') {
-		for(int row_no = 0;row_no < concert_row; row_no ++ ){
-			for(int col_no = 0;col_no < concert_col; col_no ++) {
-				if(strcmp(seat_matrix[row_no][col_no],"-") == 0) {
-					seatIndex = row_no * concert_col + col_no;
-					return seatIndex;
-				}
-			}
+int getSeatIndex(int row, int col) {
+	return row * concert_col + col;
+} 
+
+int fetchEmptySeatIndexForHighSeller() {
+	int seat_index = -1, row = 0, col = 0;
+	while (row >= 0 && col >= 0 && row < concert_row && col < concert_col) {
+		if (isSeatAvailable(row, col)) {
+			seat_index = getSeatIndex(row, col);
+			break;
 		}
-	} else if(seller_type == 'M') {
-		int mid = concert_row / 2;
-		int row_jump = 0;
-		int next_row_no = mid;
-		for(row_jump = 0;;row_jump++) {
-			int row_no = mid+row_jump;
-			if(mid + row_jump < concert_row) {
-				for(int col_no = 0;col_no < concert_col; col_no ++) {
-					if(strcmp(seat_matrix[row_no][col_no],"-") == 0) {
-						seatIndex = row_no * concert_col + col_no;
-						return seatIndex;
-					}
-				}
-			}
-			row_no = mid - row_jump;
-			if(mid - row_jump >= 0) {
-				for(int col_no = 0;col_no < concert_col; col_no ++) {
-					if(strcmp(seat_matrix[row_no][col_no],"-") == 0) {
-						seatIndex = row_no * concert_col + col_no;
-						return seatIndex;
-					}
-				}
-			}
-			if(mid + row_jump >= concert_row && mid - row_jump < 0) {
-				break;
-			}
+		col += 1;
+		if (col == concert_col) { row += 1; col = 0;}
+	}
+	return seat_index;
+}
+
+int fetchEmptySeatIndexForMediumSeller() {
+	int seat_index = -1, row = concert_row/2-1, col = 0, middleSeatIncrement = 1;
+	while (row >= 0 && col >= 0 && row < concert_row && col < concert_col) {
+		if (isSeatAvailable(row, col)) {
+			seat_index = getSeatIndex(row, col);
+			break;
 		}
-	} else if(seller_type == 'L') {
-		for(int row_no = concert_row - 1;row_no >= 0; row_no -- ){
-			for(int col_no = concert_col - 1;col_no >= 0; col_no --) {
-				if(strcmp(seat_matrix[row_no][col_no],"-") == 0) {
-					seatIndex = row_no * concert_col + col_no;
-					return seatIndex;
-				}
+		col += 1;
+		if (col == concert_col) {
+			if (row % 2 == 0) {
+				row = row + middleSeatIncrement;
+			} else {
+				row = row  - middleSeatIncrement;
 			}
+			middleSeatIncrement += 1;
+			col = 0;
 		}
 	}
+	return seat_index;
+}
 
-	return -1;
+int fetchEmptySeatIndexForLowSeller() {
+	int seat_index = -1, row = concert_row - 1, col = concert_col - 1;
+	while(row >= 0 && col >= 0 && row < concert_row && col < concert_col) {
+		if (isSeatAvailable(row, col)) {
+			seat_index = getSeatIndex(row, col);
+			break;
+		}
+		col -= 1;
+		if (col == -1) { row -= 1; col += concert_col;}
+	}
+	return seat_index;
+}
+
+int fetchEmptySeatIndexBySellerType(char sellerType) {
+	switch(sellerType) {
+		case 'H':
+			return fetchEmptySeatIndexForHighSeller();
+		case 'M':
+			return fetchEmptySeatIndexForMediumSeller();
+		case 'L':
+			return fetchEmptySeatIndexForLowSeller();
+		default:
+			return -1;
+	}
 }
 
 Queue * generate_customer_queue(int N){
