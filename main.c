@@ -6,10 +6,10 @@
 #include <pthread.h>
 #include "queue.h"
 
-#define hp_seller_count 1
-#define mp_seller_count 3
-#define lp_seller_count 6
-#define total_sell_count (hp_seller_count + mp_seller_count + lp_seller_count)
+#define hp_count 1
+#define mp_count 3
+#define lp_count 6
+#define total_sell_count (hp_count + mp_count + lp_count)
 #define concert_row 10
 #define concert_col 10
 #define simulation_duration 60
@@ -21,6 +21,7 @@ typedef struct sell_arg_struct {
 	Queue *seller_queue;
 } sell_arg;
 
+//Customer Structure
 typedef struct customer_struct {
 	char cust_no;
 	int arrival_time;
@@ -28,7 +29,7 @@ typedef struct customer_struct {
 
 //Global Variable
 int sim_time;
-int N = 5;
+int N = 5; //N customers in each seller queue
 int at1[15] = {0}, st1[15] = {0}, tat1[15] = {0}, bt1[15]={0}, rt1[15]={0};
 float throughput[3] = {0};
 
@@ -74,9 +75,9 @@ int main(int argc, char** argv) {
 	}
 
 	//Create all threads
-	create_seller_threads(seller_t, 'H', hp_seller_count);
-	create_seller_threads(seller_t + hp_seller_count, 'M', mp_seller_count);
-	create_seller_threads(seller_t + hp_seller_count + mp_seller_count, 'L', lp_seller_count);
+	create_seller_threads(seller_t, 'H', hp_count);
+	create_seller_threads(seller_t + hp_count, 'M', mp_count);
+	create_seller_threads(seller_t + hp_count + mp_count, 'L', lp_count);
 
 	//Wait for threads to finish initialization and wait for synchronized clock tick
 	while(1) {
@@ -89,7 +90,7 @@ int main(int argc, char** argv) {
 	}
 
 	//Simulate each time quanta/slice as one iteration
-	printf("Starting Simulation\n");
+	printf("Starting Simulation: \n");
 	threads_waiting_for_clock_tick = 0;
 	wakeup_all_seller_threads(); //For first tick
 	
@@ -127,13 +128,13 @@ int main(int argc, char** argv) {
 
 	printf("\n\nStat for N = %02d\n",N);
 	printf("===============\n");
-	printf(" ============================================\n");
-	printf("|%3c | No of Customers | Got Seat | Returned |\n",' ');
-	printf(" ============================================\n");
-	printf("|%3c | %15d | %8d | %8d |\n",'H',hp_seller_count*N,h_customers,(hp_seller_count*N)-h_customers);
-	printf("|%3c | %15d | %8d | %8d |\n",'M',mp_seller_count*N,m_customers,(mp_seller_count*N)-m_customers);
-	printf("|%3c | %15d | %8d | %8d |\n",'L',lp_seller_count*N,l_customers,(lp_seller_count*N)-l_customers);
-	printf(" ============================================\n");
+	printf(" ================================================\n");
+	printf("|%3c | Number of Customers | Got Seat | Returned |\n",' ');
+	printf(" ================================================\n");
+	printf("|%3c | %19d | %8d | %8d |\n",'H',hp_count*N,h_customers,(hp_count*N)-h_customers);
+	printf("|%3c | %19d | %8d | %8d |\n",'M',mp_count*N,m_customers,(mp_count*N)-m_customers);
+	printf("|%3c | %19d | %8d | %8d |\n",'L',lp_count*N,l_customers,(lp_count*N)-l_customers);
+	printf(" ================================================\n");
 
     for(int z1=0; z1<N; z1++){
         int ct = 0;
@@ -240,12 +241,12 @@ void *sell(void *t_args) {
 		while(customer_queue->size > 0 && ((customer *)customer_queue->front->data)->arrival_time <= sim_time) {
 			customer *temp = (customer *) dequeue (customer_queue);
 			enqueue(seller_queue,temp);
-			printf("00:%02d %c%d Customer No %c%d%02d arrived\n",sim_time,seller_type,seller_no,seller_type,seller_no,temp->cust_no);
+			printf("00:%02d %c%d Customer %c%d%02d arrived\n",sim_time,seller_type,seller_no,seller_type,seller_no,temp->cust_no);
 		}
 		//Serve next customer
 		if(cust == NULL && seller_queue->size>0) {
 			cust = (customer *) dequeue(seller_queue);
-			printf("00:%02d %c%d Serving Customer No %c%d%02d\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
+			printf("00:%02d %c%d Serving Customer %c%d%02d\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
 			switch(seller_type) {
 				case 'H':
 				random_wait_time = (rand()%2) + 1;
@@ -272,12 +273,12 @@ void *sell(void *t_args) {
 				// Find seat
 				int seatIndex = fetchEmptySeatIndexBySellerType(seller_type);
 				if(seatIndex == -1) {
-					printf("00:%02d %c%d Customer No %c%d%02d has been told Concert Sold Out.\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
+					printf("00:%02d %c%d Customer %c%d%02d has been told Concert Sold Out.\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
 				} else {
 					int row_no = seatIndex/concert_col;
 					int col_no = seatIndex%concert_col;
 					sprintf(seat_matrix[row_no][col_no],"%c%d%02d",seller_type,seller_no,cust->cust_no);
-					printf("00:%02d %c%d Customer No %c%d%02d assigned seat %d,%d \n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no,row_no+1,col_no+1);
+					printf("00:%02d %c%d Customer %c%d%02d assigned seat %d,%d \n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no,row_no+1,col_no+1);
                     num_cust_served++;
                     if (seller_type == 'L')
                         throughput[0]++;
@@ -299,7 +300,7 @@ void *sell(void *t_args) {
 	while(cust!=NULL || seller_queue->size > 0) {
 		if(cust==NULL)
 			cust = (customer *) dequeue(seller_queue);
-		printf("00:%02d %c%d Ticket Sale Closed. Customer No %c%d%02d Leaves\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
+		printf("00:%02d %c%d Ticket Sale Closed. Customer %c%d%02d Leaves\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
 		cust = NULL;
 	}
 
