@@ -8,7 +8,7 @@
 #define hp_seller_count 1
 #define mp_seller_count 3
 #define lp_seller_count 6
-#define total_seller (hp_seller_count + mp_seller_count + lp_seller_count)
+#define total_sell_count (hp_seller_count + mp_seller_count + lp_seller_count)
 #define concert_row 10
 #define concert_col 10
 #define simulation_duration 60
@@ -35,7 +35,7 @@ float avg_rt=0, avg_tat=0, num_cust_served = 0;
 char seat_matrix[concert_row][concert_col][5];	//4 to hold L002\0
 
 //Thread Variable
-pthread_t seller_t[total_seller];
+pthread_t seller_t[total_sell_count];
 pthread_mutex_t thread_count_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t thread_waiting_for_clock_tick_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t reservation_mutex = PTHREAD_MUTEX_INITIALIZER;
