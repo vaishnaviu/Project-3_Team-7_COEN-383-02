@@ -6,10 +6,10 @@
 #include <pthread.h>
 #include "queue.h"
 
-#define hpCount 1
-#define mpCount 3
-#define lpCount 6
-#define totalSellCount (hpCount + mpCount + lpCount)
+#define hCount 1
+#define mCount 3
+#define lCount 6
+#define totalSellCount (hCount + mCount + lCount)
 #define concertRow 10
 #define concertCol 10
 #define simulationDuration 60
@@ -29,9 +29,8 @@ typedef struct customerStruct {
 
 //Global Variable
 int simTime;
-int N = 5; //N customers in each seller queue
-int at1[15] = {0}, st1[15] = {0}, tat1[15] = {0}, bt1[15]={0}, rt1[15]={0};
-float throughput[3] = {0}, processesStarted[3] = {0};
+int N = 10; //N customers in each seller queue
+float throughput[3] = {0};
 int response_time[3] = {0}, turn_around_time[3] = {0}; // per seller type 0:L, 1:M, 2:H.
 
 float avg_rt=0, avg_tat=0, num_cust_served = 0;
@@ -46,6 +45,11 @@ pthread_mutex_t thread_completion_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t condition_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  condition_cond  = PTHREAD_COND_INITIALIZER;
 
+int threadCount = 0;
+int threadsWaitingForClockTick = 0;
+int activeThread = 0;
+int verbose = 0;
+
 //Function Definitions
 void display_queue(Queue *q);
 void create_seller_threads(pthread_t *thread, char sellerType, int no_of_sellers);
@@ -55,114 +59,6 @@ void *sell(void *);
 Queue * create_customer_queue(int);
 int compare_by_arrivalTime(void * data1, void * data2);
 int fetchEmptySeatIndexBySellerType(char sellerType);
-
-int threadCount = 0;
-int threadsWaitingForClockTick = 0;
-int activeThread = 0;
-int verbose = 0;
-
-int main(int argc, char** argv) {
-    srand(4388);
-
-	if(argc == 2) {
-		N = atoi(argv[1]);
-	}
-
-	//Initialize Global Variables
-	for(int r=0; r<concertRow; r++) {
-		for(int c=0; c<concertCol; c++) {
-			strncpy(seat_matrix[r][c],"-",1);
-		}
-	}
-
-	//Create all threads
-	create_seller_threads(seller_t, 'H', hpCount);
-	create_seller_threads(seller_t + hpCount, 'M', mpCount);
-	create_seller_threads(seller_t + hpCount + mpCount, 'L', lpCount);
-
-	//Wait for threads to finish initialization and wait for synchronized clock tick
-	while(1) {
-		pthread_mutex_lock(&threadCount_mutex);
-		if(threadCount == 0) {
-			pthread_mutex_unlock(&threadCount_mutex);
-			break;
-		}
-		pthread_mutex_unlock(&threadCount_mutex);
-	}
-
-	//Simulate each time quanta/slice as one iteration
-	printf("Starting Simulation: \n");
-	threadsWaitingForClockTick = 0;
-	wakeup_all_seller_threads(); //For first tick
-	
-	do {
-
-		//Wake up all thread
-		wait_for_thread_to_serve_current_time_slice();
-		simTime = simTime + 1;
-		wakeup_all_seller_threads();
-		//Wait for thread completion
-	} while(simTime < simulationDuration);
-
-	//Wakeup all thread so that no more thread keep waiting for clock Tick in limbo
-	wakeup_all_seller_threads();
-
-	while(activeThread);
-
-	//Display concert chart
-	printf("\n\n");
-	printf("Final Concert Seat Chart\n");
-	printf("========================\n");
-
-	int h_customers = 0,m_customers = 0,l_customers = 0;
-	for(int r=0;r<concertRow;r++) {
-		for(int c=0;c<concertCol;c++) {
-			if(c!=0)
-				printf("\t");
-			printf("%5s",seat_matrix[r][c]);
-			if(seat_matrix[r][c][0]=='H') h_customers++;
-			if(seat_matrix[r][c][0]=='M') m_customers++;
-			if(seat_matrix[r][c][0]=='L') l_customers++;
-		}
-		printf("\n");
-	}
-
-	printf("\n\nStat for N = %02d\n",N);
-	printf("===============\n");
-	printf(" ================================================\n");
-	printf("|%3c | Number of Customers | Got Seat | Returned |\n",' ');
-	printf(" ================================================\n");
-	printf("|%3c | %19d | %8d | %8d |\n",'H',hpCount*N,h_customers,(hpCount*N)-h_customers);
-	printf("|%3c | %19d | %8d | %8d |\n",'M',mpCount*N,m_customers,(mpCount*N)-m_customers);
-	printf("|%3c | %19d | %8d | %8d |\n",'L',lpCount*N,l_customers,(lpCount*N)-l_customers);
-	printf(" ================================================\n");
-
-    for(int z1=0; z1<N; z1++){
-        int ct = 0;
-        ct = st1[z1] + bt1[z1];
-        rt1[z1] = abs(st1[z1]-at1[z1]);
-        tat1[z1] = abs(ct - at1[z1]);
-    }
-
-    for(int j1=0; j1<N; j1++){
-        avg_tat += tat1[j1];
-        avg_rt += rt1[j1];
-    }
-
-	printf("Average Response time of seller L is %.2f\n", response_time[0]/processesStarted[0]);
-    printf("Average Response time  of seller M is %.2f\n", response_time[1]/processesStarted[1]);
-    printf("Average Response time  of seller H is %.2f\n", response_time[2]/processesStarted[2]);
-
-	printf("Average Turn Around time of seller L is %.2f\n", turn_around_time[0]/throughput[0]);
-    printf("Average Turn Around time  of seller M is %.2f\n", turn_around_time[1]/throughput[1]);
-    printf("Average Turn around  time  of seller H is %.2f\n", turn_around_time[2]/throughput[2]);
-
-    printf("Throughput of seller L is %.2f\n", throughput[0]/60.0);
-    printf("Throughput of seller M is %.2f\n", throughput[1]/60.0);
-    printf("Throughput of seller H is %.2f\n", throughput[2]/60.0);
-
-	return 0;
-}
 
 void create_seller_threads(pthread_t *thread, char sellerType, int no_of_sellers){
 	//Create all threads
@@ -224,7 +120,6 @@ void *sell(void *t_args) {
 
 	customer *cust = NULL;
 	int random_wait_time = 0;
-    int temp1 = 0;
 	
 
 	while(simTime < simulationDuration) {
@@ -256,25 +151,17 @@ void *sell(void *t_args) {
 			printf("00:%02d %c%d Serving Customer %c%d%02d\n",simTime,sellerType,sellerNo,sellerType,sellerNo,cust->custNo);
 			switch(sellerType) {
 				case 'H':
-				random_wait_time = (rand()%2) + 1;
-                bt1[temp1] = random_wait_time;
-                temp1++;
-				response_time[2] += (simTime - cust->arrivalTime);
-				processesStarted[2] += 1;
-				break;
+					random_wait_time = (rand()%2) + 1;
+					response_time[2] += (simTime - cust->arrivalTime);
+					break;
 				case 'M':
-				random_wait_time = (rand()%3) + 2;
-                bt1[temp1] = random_wait_time;
-                temp1++;
-				response_time[1] += (simTime - cust->arrivalTime);
-				processesStarted[1] += 1;
-				break;
+					random_wait_time = (rand()%3) + 2;
+					response_time[1] += (simTime - cust->arrivalTime);
+					break;
 				case 'L':
-				random_wait_time = (rand()%4) + 4;
-                bt1[temp1] = random_wait_time;
-                temp1++;
-				response_time[0] += (simTime - cust->arrivalTime);
-				processesStarted[0] += 1;
+					random_wait_time = (rand()%4) + 4;
+					response_time[0] += (simTime - cust->arrivalTime);
+					break;
 			}
 		}
 		if(cust != NULL) {
@@ -293,16 +180,20 @@ void *sell(void *t_args) {
 					sprintf(seat_matrix[row_no][col_no],"%c%d%02d",sellerType,sellerNo,cust->custNo);
 					printf("00:%02d %c%d Customer %c%d%02d assigned seat %d,%d \n",simTime,sellerType,sellerNo,sellerType,sellerNo,cust->custNo,row_no+1,col_no+1);
                     num_cust_served++;
-                    if (sellerType == 'L') {
-                        throughput[0]++;
+					switch (sellerType)
+					{
+					case 'L':
+						throughput[0]++;
 						turn_around_time[0] += (simTime - cust->arrivalTime);
-					} else if (sellerType=='M') {
-                        throughput[1]++;
+						break;
+					case 'M':
+						throughput[1]++;
 						turn_around_time[1] += (simTime - cust->arrivalTime);
-					}
-                    else if (sellerType == 'H') {
-                        throughput[2]++;
+						break;
+					case 'H':
+						throughput[2]++;
 						turn_around_time[2] += (simTime - cust->arrivalTime);
+						break;
 					}
 				}
 				pthread_mutex_unlock(&reservation_mutex);
@@ -311,7 +202,7 @@ void *sell(void *t_args) {
 				random_wait_time--;
 			}
 		} else {
-			//printf("00:%02d %c%02d Waiting for customer\n",simTime,sellerType,sellerNo);
+			//Waiting for customer
 		}
 	}
 
@@ -403,7 +294,6 @@ Queue * create_customer_queue(int num_customers){
 		customer *cust = (customer *) malloc(sizeof(customer));
 		cust->custNo = custNo;
 		cust->arrivalTime = rand() % simulationDuration;
-        at1[custNo] = cust->arrivalTime;
 		enqueue(customer_queue,cust);
 		custNo++;
 	}
@@ -429,4 +319,95 @@ int compare_by_arrivalTime(void * data1, void * data2) {
 	} else {
 		return 1;
 	}
+}
+
+int main(int argc, char** argv) {
+    srand(4388);
+
+	if(argc == 2) {
+		N = atoi(argv[1]);
+	}
+
+	//Initialize Global Variables
+	for(int r=0; r<concertRow; r++) {
+		for(int c=0; c<concertCol; c++) {
+			strncpy(seat_matrix[r][c],"-",1);
+		}
+	}
+
+	//Create all threads
+	create_seller_threads(seller_t, 'H', hCount);
+	create_seller_threads(seller_t + hCount, 'M', mCount);
+	create_seller_threads(seller_t + hCount + mCount, 'L', lCount);
+
+	//Wait for threads to finish initialization and wait for synchronized clock tick
+	while(1) {
+		pthread_mutex_lock(&threadCount_mutex);
+		if(threadCount == 0) {
+			pthread_mutex_unlock(&threadCount_mutex);
+			break;
+		}
+		pthread_mutex_unlock(&threadCount_mutex);
+	}
+
+	//Simulate each time quanta/slice as one iteration
+	printf("Starting Simulation: \n");
+	threadsWaitingForClockTick = 0;
+	wakeup_all_seller_threads(); //For first tick
+	
+	do {
+
+		//Wake up all thread
+		wait_for_thread_to_serve_current_time_slice();
+		simTime = simTime + 1;
+		wakeup_all_seller_threads();
+		//Wait for thread completion
+	} while(simTime < simulationDuration);
+
+	//Wakeup all thread so that no more thread keep waiting for clock Tick in limbo
+	wakeup_all_seller_threads();
+
+	while(activeThread);
+
+	//Display concert chart
+	printf("\n\n");
+	printf("Final Concert Seat Chart\n");
+	printf("========================\n");
+
+	int h_customers = 0,m_customers = 0,l_customers = 0;
+	for(int r=0;r<concertRow;r++) {
+		for(int c=0;c<concertCol;c++) {
+			if(c!=0)
+				printf("\t");
+			printf("%5s",seat_matrix[r][c]);
+			if(seat_matrix[r][c][0]=='H') h_customers++;
+			if(seat_matrix[r][c][0]=='M') m_customers++;
+			if(seat_matrix[r][c][0]=='L') l_customers++;
+		}
+		printf("\n");
+	}
+
+	printf("\n\nStat for N = %02d\n",N);
+	printf("===============\n");
+	printf(" ================================================\n");
+	printf("|%3c | Number of Customers | Got Seat | Returned |\n",' ');
+	printf(" ================================================\n");
+	printf("|%3c | %19d | %8d | %8d |\n",'H',hCount*N,h_customers,(hCount*N)-h_customers);
+	printf("|%3c | %19d | %8d | %8d |\n",'M',mCount*N,m_customers,(mCount*N)-m_customers);
+	printf("|%3c | %19d | %8d | %8d |\n",'L',lCount*N,l_customers,(lCount*N)-l_customers);
+	printf(" ================================================\n");
+
+	printf("\nAverage Response time of seller L is %.2f\n", response_time[0]/(N * 6.0));
+    printf("Average Response time  of seller M is %.2f\n", response_time[1]/(N * 3.0));
+    printf("Average Response time  of seller H is %.2f\n", response_time[2]/(N * 1.0));
+
+	printf("\nAverage Turn Around time of seller L is %.2f\n", turn_around_time[0]/(N * 6.0));
+    printf("Average Turn Around time  of seller M is %.2f\n", turn_around_time[1]/(N * 3.0));
+    printf("Average Turn around  time  of seller H is %.2f\n", turn_around_time[2]/(N * 1.0));
+
+    printf("\nThroughput of seller L is %.2f\n", throughput[0]/60.0);
+    printf("Throughput of seller M is %.2f\n", throughput[1]/60.0);
+    printf("Throughput of seller H is %.2f\n", throughput[2]/60.0);
+
+	return 0;
 }
