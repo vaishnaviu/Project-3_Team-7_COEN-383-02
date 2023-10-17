@@ -49,7 +49,7 @@ void create_seller_threads(pthread_t *thread, char seller_type, int no_of_seller
 void wait_for_thread_to_serve_current_time_slice();
 void wakeup_all_seller_threads();
 void *sell(void *);
-Queue * generate_customer_queue(int);
+Queue * create_customer_queue(int);
 int compare_by_arrival_time(void * data1, void * data2);
 int fetchEmptySeatIndexBySellerType(char seller_type);
 
@@ -161,7 +161,7 @@ void create_seller_threads(pthread_t *thread, char seller_type, int no_of_seller
 		sell_arg *seller_arg = (sell_arg *) malloc(sizeof(sell_arg));
 		seller_arg->seller_no = t_no;
 		seller_arg->seller_type = seller_type;
-		seller_arg->seller_queue = generate_customer_queue(N);
+		seller_arg->seller_queue = create_customer_queue(N);
 
 		pthread_mutex_lock(&thread_count_mutex);
 		thread_count++;
@@ -376,10 +376,10 @@ int fetchEmptySeatIndexBySellerType(char sellerType) {
 	}
 }
 
-Queue * generate_customer_queue(int N){
+Queue * create_customer_queue(int num_customers){
 	Queue * customer_queue = createQueue();
 	char cust_no = 0;
-	while(N--) {
+	while(num_customers--) {
 		customer *cust = (customer *) malloc(sizeof(customer));
 		cust->cust_no = cust_no;
 		cust->arrival_time = rand() % simulation_duration;
@@ -400,11 +400,11 @@ Queue * generate_customer_queue(int N){
 }
 
 int compare_by_arrival_time(void * data1, void * data2) {
-	customer *c1 = (customer *)data1;
-	customer *c2 = (customer *)data2;
-	if(c1->arrival_time < c2->arrival_time) {
+	customer *customer1 = (customer *)data1;
+	customer *customer2 = (customer *)data2;
+	if(customer1->arrival_time < customer2->arrival_time) {
 		return -1;
-	} else if(c1->arrival_time == c2->arrival_time){
+	} else if(customer1->arrival_time == customer2->arrival_time){
 		return 0;
 	} else {
 		return 1;
