@@ -32,6 +32,7 @@ int sim_time;
 int N = 5; //N customers in each seller queue
 int at1[15] = {0}, st1[15] = {0}, tat1[15] = {0}, bt1[15]={0}, rt1[15]={0};
 float throughput[3] = {0};
+int response_time[3] = {0}, turn_around_time[3] = {0}; // per seller type 0:L, 1:M, 2:H.
 
 float avg_rt=0, avg_tat=0, num_cust_served = 0;
 char seat_matrix[concert_row][concert_col][5];	//4 to hold L002\0
@@ -150,6 +151,14 @@ int main(int argc, char** argv) {
 
     printf("\nAverage TAT is %.2f\n", avg_tat/N);
     printf("Average RT is %.2f\n", avg_rt/N);
+	printf("Average Response time of seller L is %.2f\n", response_time[0]/throughput[0]);
+    printf("Average Response time  of seller M is %.2f\n", response_time[1]/throughput[1]);
+    printf("Average Response time  of seller H is %.2f\n", response_time[2]/throughput[2]);
+
+	printf("Average Turn Around time of seller L is %.2f\n", turn_around_time[0]/throughput[0]);
+    printf("Average Turn Around time  of seller M is %.2f\n", turn_around_time[1]/throughput[1]);
+    printf("Average Turn around  time  of seller H is %.2f\n", turn_around_time[2]/throughput[2]);
+
     printf("Throughput of seller L is %.2f\n", throughput[0]/60.0);
     printf("Throughput of seller M is %.2f\n", throughput[1]/60.0);
     printf("Throughput of seller H is %.2f\n", throughput[2]/60.0);
@@ -252,16 +261,19 @@ void *sell(void *t_args) {
 				random_wait_time = (rand()%2) + 1;
                 bt1[temp1] = random_wait_time;
                 temp1++;
+				response_time[2] += (sim_time - cust->arrival_time);
 				break;
 				case 'M':
 				random_wait_time = (rand()%3) + 2;
                 bt1[temp1] = random_wait_time;
                 temp1++;
+				response_time[1] += (sim_time - cust->arrival_time);
 				break;
 				case 'L':
 				random_wait_time = (rand()%4) + 4;
                 bt1[temp1] = random_wait_time;
                 temp1++;
+				response_time[0] += (sim_time - cust->arrival_time);
 			}
 		}
 		if(cust != NULL) {
@@ -280,12 +292,17 @@ void *sell(void *t_args) {
 					sprintf(seat_matrix[row_no][col_no],"%c%d%02d",seller_type,seller_no,cust->cust_no);
 					printf("00:%02d %c%d Customer %c%d%02d assigned seat %d,%d \n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no,row_no+1,col_no+1);
                     num_cust_served++;
-                    if (seller_type == 'L')
+                    if (seller_type == 'L') {
                         throughput[0]++;
-                    else if (seller_type=='M')
+						turn_around_time[0] += (sim_time - cust->arrival_time);
+					} else if (seller_type=='M') {
                         throughput[1]++;
-                    else if (seller_type == 'H')
+						turn_around_time[1] += (sim_time - cust->arrival_time);
+					}
+                    else if (seller_type == 'H') {
                         throughput[2]++;
+						turn_around_time[2] += (sim_time - cust->arrival_time);
+					}
 				}
 				pthread_mutex_unlock(&reservation_mutex);
 				cust = NULL;
