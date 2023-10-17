@@ -276,7 +276,7 @@ void *sell(void *t_args) {
 					int row_no = seatIndex/concert_col;
 					int col_no = seatIndex%concert_col;
 					sprintf(seat_matrix[row_no][col_no],"%c%d%02d",seller_type,seller_no,cust->cust_no);
-					printf("00:%02d %c%d Customer No %c%d%02d assigned seat %d,%d \n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no,row_no,col_no);
+					printf("00:%02d %c%d Customer No %c%d%02d assigned seat %d,%d \n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no,row_no+1,col_no+1);
                     num_cust_served++;
                     if (seller_type == 'L')
                         throughput[0]++;
