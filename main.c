@@ -150,9 +150,9 @@ int main(int argc, char** argv) {
 
     printf("\nAverage TAT is %.2f\n", avg_tat/N);
     printf("Average RT is %.2f\n", avg_rt/N);
-    printf("Throughput of seller H is %.2f\n", throughput[0]/60.0);
+    printf("Throughput of seller L is %.2f\n", throughput[0]/60.0);
     printf("Throughput of seller M is %.2f\n", throughput[1]/60.0);
-    printf("Throughput of seller L is %.2f\n", throughput[2]/60.0);
+    printf("Throughput of seller H is %.2f\n", throughput[2]/60.0);
 
 	return 0;
 }
