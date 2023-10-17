@@ -177,6 +177,7 @@ void *sell(void *t_args) {
 				} else {
 					int row_no = seatIndex/concertCol;
 					int col_no = seatIndex%concertCol;
+					//cust->turn_around_time = cust->turn_around_time + simTime;
 					sprintf(seat_matrix[row_no][col_no],"%c%d%02d",sellerType,sellerNo,cust->custNo);
 					printf("00:%02d %c%d Customer %c%d%02d assigned seat %d,%d \n",simTime,sellerType,sellerNo,sellerType,sellerNo,cust->custNo,row_no+1,col_no+1);
                     num_cust_served++;
