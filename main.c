@@ -6,40 +6,40 @@
 #include <pthread.h>
 #include "queue.h"
 
-#define hp_count 1
-#define mp_count 3
-#define lp_count 6
-#define total_sell_count (hp_count + mp_count + lp_count)
-#define concert_row 10
-#define concert_col 10
-#define simulation_duration 60
+#define hpCount 1
+#define mpCount 3
+#define lpCount 6
+#define totalSellCount (hpCount + mpCount + lpCount)
+#define concertRow 10
+#define concertCol 10
+#define simulationDuration 60
 
 // Seller Argument Structure
-typedef struct sell_arg_struct {
-	char seller_no;
-	char seller_type;
-	Queue *seller_queue;
+typedef struct sellArgStruct {
+	char sellerNo;
+	char sellerType;
+	Queue *sellerQueue;
 } sell_arg;
 
 //Customer Structure
-typedef struct customer_struct {
-	char cust_no;
-	int arrival_time;
+typedef struct customerStruct {
+	char custNo;
+	int arrivalTime;
 } customer;
 
 //Global Variable
-int sim_time;
+int simTime;
 int N = 5; //N customers in each seller queue
 int at1[15] = {0}, st1[15] = {0}, tat1[15] = {0}, bt1[15]={0}, rt1[15]={0};
 float throughput[3] = {0};
 int response_time[3] = {0}, turn_around_time[3] = {0}; // per seller type 0:L, 1:M, 2:H.
 
 float avg_rt=0, avg_tat=0, num_cust_served = 0;
-char seat_matrix[concert_row][concert_col][5];	//4 to hold L002\0
+char seat_matrix[concertRow][concertCol][5];	//4 to hold L002\0
 
 //Thread Variable
-pthread_t seller_t[total_sell_count];
-pthread_mutex_t thread_count_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_t seller_t[totalSellCount];
+pthread_mutex_t threadCount_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t thread_waiting_for_clock_tick_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t reservation_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t thread_completion_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -48,17 +48,17 @@ pthread_cond_t  condition_cond  = PTHREAD_COND_INITIALIZER;
 
 //Function Definitions
 void display_queue(Queue *q);
-void create_seller_threads(pthread_t *thread, char seller_type, int no_of_sellers);
+void create_seller_threads(pthread_t *thread, char sellerType, int no_of_sellers);
 void wait_for_thread_to_serve_current_time_slice();
 void wakeup_all_seller_threads();
 void *sell(void *);
 Queue * create_customer_queue(int);
-int compare_by_arrival_time(void * data1, void * data2);
-int fetchEmptySeatIndexBySellerType(char seller_type);
+int compare_by_arrivalTime(void * data1, void * data2);
+int fetchEmptySeatIndexBySellerType(char sellerType);
 
-int thread_count = 0;
-int threads_waiting_for_clock_tick = 0;
-int active_thread = 0;
+int threadCount = 0;
+int threadsWaitingForClockTick = 0;
+int activeThread = 0;
 int verbose = 0;
 
 int main(int argc, char** argv) {
@@ -69,45 +69,45 @@ int main(int argc, char** argv) {
 	}
 
 	//Initialize Global Variables
-	for(int r=0; r<concert_row; r++) {
-		for(int c=0; c<concert_col; c++) {
+	for(int r=0; r<concertRow; r++) {
+		for(int c=0; c<concertCol; c++) {
 			strncpy(seat_matrix[r][c],"-",1);
 		}
 	}
 
 	//Create all threads
-	create_seller_threads(seller_t, 'H', hp_count);
-	create_seller_threads(seller_t + hp_count, 'M', mp_count);
-	create_seller_threads(seller_t + hp_count + mp_count, 'L', lp_count);
+	create_seller_threads(seller_t, 'H', hpCount);
+	create_seller_threads(seller_t + hpCount, 'M', mpCount);
+	create_seller_threads(seller_t + hpCount + mpCount, 'L', lpCount);
 
 	//Wait for threads to finish initialization and wait for synchronized clock tick
 	while(1) {
-		pthread_mutex_lock(&thread_count_mutex);
-		if(thread_count == 0) {
-			pthread_mutex_unlock(&thread_count_mutex);
+		pthread_mutex_lock(&threadCount_mutex);
+		if(threadCount == 0) {
+			pthread_mutex_unlock(&threadCount_mutex);
 			break;
 		}
-		pthread_mutex_unlock(&thread_count_mutex);
+		pthread_mutex_unlock(&threadCount_mutex);
 	}
 
 	//Simulate each time quanta/slice as one iteration
 	printf("Starting Simulation: \n");
-	threads_waiting_for_clock_tick = 0;
+	threadsWaitingForClockTick = 0;
 	wakeup_all_seller_threads(); //For first tick
 	
 	do {
 
 		//Wake up all thread
 		wait_for_thread_to_serve_current_time_slice();
-		sim_time = sim_time + 1;
+		simTime = simTime + 1;
 		wakeup_all_seller_threads();
 		//Wait for thread completion
-	} while(sim_time < simulation_duration);
+	} while(simTime < simulationDuration);
 
 	//Wakeup all thread so that no more thread keep waiting for clock Tick in limbo
 	wakeup_all_seller_threads();
 
-	while(active_thread);
+	while(activeThread);
 
 	//Display concert chart
 	printf("\n\n");
@@ -115,8 +115,8 @@ int main(int argc, char** argv) {
 	printf("========================\n");
 
 	int h_customers = 0,m_customers = 0,l_customers = 0;
-	for(int r=0;r<concert_row;r++) {
-		for(int c=0;c<concert_col;c++) {
+	for(int r=0;r<concertRow;r++) {
+		for(int c=0;c<concertCol;c++) {
 			if(c!=0)
 				printf("\t");
 			printf("%5s",seat_matrix[r][c]);
@@ -132,9 +132,9 @@ int main(int argc, char** argv) {
 	printf(" ================================================\n");
 	printf("|%3c | Number of Customers | Got Seat | Returned |\n",' ');
 	printf(" ================================================\n");
-	printf("|%3c | %19d | %8d | %8d |\n",'H',hp_count*N,h_customers,(hp_count*N)-h_customers);
-	printf("|%3c | %19d | %8d | %8d |\n",'M',mp_count*N,m_customers,(mp_count*N)-m_customers);
-	printf("|%3c | %19d | %8d | %8d |\n",'L',lp_count*N,l_customers,(lp_count*N)-l_customers);
+	printf("|%3c | %19d | %8d | %8d |\n",'H',hpCount*N,h_customers,(hpCount*N)-h_customers);
+	printf("|%3c | %19d | %8d | %8d |\n",'M',mpCount*N,m_customers,(mpCount*N)-m_customers);
+	printf("|%3c | %19d | %8d | %8d |\n",'L',lpCount*N,l_customers,(lpCount*N)-l_customers);
 	printf(" ================================================\n");
 
     for(int z1=0; z1<N; z1++){
@@ -166,19 +166,19 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
-void create_seller_threads(pthread_t *thread, char seller_type, int no_of_sellers){
+void create_seller_threads(pthread_t *thread, char sellerType, int no_of_sellers){
 	//Create all threads
 	for(int t_no = 0; t_no < no_of_sellers; t_no++) {
 		sell_arg *seller_arg = (sell_arg *) malloc(sizeof(sell_arg));
-		seller_arg->seller_no = t_no;
-		seller_arg->seller_type = seller_type;
-		seller_arg->seller_queue = create_customer_queue(N);
+		seller_arg->sellerNo = t_no;
+		seller_arg->sellerType = sellerType;
+		seller_arg->sellerQueue = create_customer_queue(N);
 
-		pthread_mutex_lock(&thread_count_mutex);
-		thread_count++;
-		pthread_mutex_unlock(&thread_count_mutex);
+		pthread_mutex_lock(&threadCount_mutex);
+		threadCount++;
+		pthread_mutex_unlock(&threadCount_mutex);
 		if(verbose)
-			printf("Creating thread %c%02d\n",seller_type,t_no);
+			printf("Creating thread %c%02d\n",sellerType,t_no);
 		pthread_create(thread+t_no, NULL, &sell, seller_arg);
 	}
 }
@@ -186,7 +186,7 @@ void create_seller_threads(pthread_t *thread, char seller_type, int no_of_seller
 void display_queue(Queue *q) {
 	for(Node *ptr = q->front;ptr!=NULL;ptr=ptr->next) {
 		customer *cust = (customer * )ptr->data;
-		printf("[%d,%d]",cust->cust_no,cust->arrival_time);
+		printf("[%d,%d]",cust->custNo,cust->arrivalTime);
 	}
 }
 
@@ -194,8 +194,8 @@ void wait_for_thread_to_serve_current_time_slice(){
 	//Check if all threads has finished their jobs for this time slice
 	while(1){
 		pthread_mutex_lock(&thread_waiting_for_clock_tick_mutex);
-		if(threads_waiting_for_clock_tick == active_thread) {
-			threads_waiting_for_clock_tick = 0;	
+		if(threadsWaitingForClockTick == activeThread) {
+			threadsWaitingForClockTick = 0;	
 			pthread_mutex_unlock(&thread_waiting_for_clock_tick_mutex);
 			break;
 		}
@@ -206,7 +206,7 @@ void wakeup_all_seller_threads() {
 
 	pthread_mutex_lock( &condition_mutex );
 	if(verbose)
-		printf("00:%02d Main Thread Broadcasting Clock Tick\n",sim_time);
+		printf("00:%02d Main Thread Broadcasting Clock Tick\n",simTime);
 	pthread_cond_broadcast( &condition_cond);
 	pthread_mutex_unlock( &condition_mutex );
 }
@@ -214,66 +214,66 @@ void wakeup_all_seller_threads() {
 void *sell(void *t_args) {
 	//Initializing thread
 	sell_arg *args = (sell_arg *) t_args;
-	Queue * customer_queue = args->seller_queue;
-	Queue * seller_queue = createQueue();
-	char seller_type = args->seller_type;
-	int seller_no = args->seller_no + 1;
+	Queue * customer_queue = args->sellerQueue;
+	Queue * sellerQueue = createQueue();
+	char sellerType = args->sellerType;
+	int sellerNo = args->sellerNo + 1;
 	
-	pthread_mutex_lock(&thread_count_mutex);
-	thread_count--;
-	active_thread++;
-	pthread_mutex_unlock(&thread_count_mutex);
+	pthread_mutex_lock(&threadCount_mutex);
+	threadCount--;
+	activeThread++;
+	pthread_mutex_unlock(&threadCount_mutex);
 
 	customer *cust = NULL;
 	int random_wait_time = 0;
     int temp1 = 0;
 	
 
-	while(sim_time < simulation_duration) {
+	while(simTime < simulationDuration) {
 		//Waiting for clock tick
 		pthread_mutex_lock(&condition_mutex);
 		if(verbose)
-			printf("00:%02d %c%02d Waiting for next clock tick\n",sim_time,seller_type,seller_no);
+			printf("00:%02d %c%02d Waiting for next clock tick\n",simTime,sellerType,sellerNo);
 		
 		pthread_mutex_lock(&thread_waiting_for_clock_tick_mutex);
-		threads_waiting_for_clock_tick++;
+		threadsWaitingForClockTick++;
 		pthread_mutex_unlock(&thread_waiting_for_clock_tick_mutex);
 		
 		pthread_cond_wait( &condition_cond, &condition_mutex);
 		if(verbose)
-			printf("00:%02d %c%02d Received Clock Tick\n",sim_time,seller_type,seller_no);
+			printf("00:%02d %c%02d Received Clock Tick\n",simTime,sellerType,sellerNo);
 		pthread_mutex_unlock( &condition_mutex );
 
 		// Sell
-		if(sim_time == simulation_duration) break;
+		if(simTime == simulationDuration) break;
 		//All New Customer Came
-		while(customer_queue->size > 0 && ((customer *)customer_queue->front->data)->arrival_time <= sim_time) {
+		while(customer_queue->size > 0 && ((customer *)customer_queue->front->data)->arrivalTime <= simTime) {
 			customer *temp = (customer *) dequeue (customer_queue);
-			enqueue(seller_queue,temp);
-			printf("00:%02d %c%d Customer %c%d%02d arrived\n",sim_time,seller_type,seller_no,seller_type,seller_no,temp->cust_no);
+			enqueue(sellerQueue,temp);
+			printf("00:%02d %c%d Customer %c%d%02d arrived\n",simTime,sellerType,sellerNo,sellerType,sellerNo,temp->custNo);
 		}
 		//Serve next customer
-		if(cust == NULL && seller_queue->size>0) {
-			cust = (customer *) dequeue(seller_queue);
-			printf("00:%02d %c%d Serving Customer %c%d%02d\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
-			switch(seller_type) {
+		if(cust == NULL && sellerQueue->size>0) {
+			cust = (customer *) dequeue(sellerQueue);
+			printf("00:%02d %c%d Serving Customer %c%d%02d\n",simTime,sellerType,sellerNo,sellerType,sellerNo,cust->custNo);
+			switch(sellerType) {
 				case 'H':
 				random_wait_time = (rand()%2) + 1;
                 bt1[temp1] = random_wait_time;
                 temp1++;
-				response_time[2] += (sim_time - cust->arrival_time);
+				response_time[2] += (simTime - cust->arrivalTime);
 				break;
 				case 'M':
 				random_wait_time = (rand()%3) + 2;
                 bt1[temp1] = random_wait_time;
                 temp1++;
-				response_time[1] += (sim_time - cust->arrival_time);
+				response_time[1] += (simTime - cust->arrivalTime);
 				break;
 				case 'L':
 				random_wait_time = (rand()%4) + 4;
                 bt1[temp1] = random_wait_time;
                 temp1++;
-				response_time[0] += (sim_time - cust->arrival_time);
+				response_time[0] += (simTime - cust->arrivalTime);
 			}
 		}
 		if(cust != NULL) {
@@ -283,25 +283,25 @@ void *sell(void *t_args) {
 				pthread_mutex_lock(&reservation_mutex);
 
 				// Find seat
-				int seatIndex = fetchEmptySeatIndexBySellerType(seller_type);
+				int seatIndex = fetchEmptySeatIndexBySellerType(sellerType);
 				if(seatIndex == -1) {
-					printf("00:%02d %c%d Customer %c%d%02d has been told Concert Sold Out.\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
+					printf("00:%02d %c%d Customer %c%d%02d has been told Concert Sold Out.\n",simTime,sellerType,sellerNo,sellerType,sellerNo,cust->custNo);
 				} else {
-					int row_no = seatIndex/concert_col;
-					int col_no = seatIndex%concert_col;
-					sprintf(seat_matrix[row_no][col_no],"%c%d%02d",seller_type,seller_no,cust->cust_no);
-					printf("00:%02d %c%d Customer %c%d%02d assigned seat %d,%d \n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no,row_no+1,col_no+1);
+					int row_no = seatIndex/concertCol;
+					int col_no = seatIndex%concertCol;
+					sprintf(seat_matrix[row_no][col_no],"%c%d%02d",sellerType,sellerNo,cust->custNo);
+					printf("00:%02d %c%d Customer %c%d%02d assigned seat %d,%d \n",simTime,sellerType,sellerNo,sellerType,sellerNo,cust->custNo,row_no+1,col_no+1);
                     num_cust_served++;
-                    if (seller_type == 'L') {
+                    if (sellerType == 'L') {
                         throughput[0]++;
-						turn_around_time[0] += (sim_time - cust->arrival_time);
-					} else if (seller_type=='M') {
+						turn_around_time[0] += (simTime - cust->arrivalTime);
+					} else if (sellerType=='M') {
                         throughput[1]++;
-						turn_around_time[1] += (sim_time - cust->arrival_time);
+						turn_around_time[1] += (simTime - cust->arrivalTime);
 					}
-                    else if (seller_type == 'H') {
+                    else if (sellerType == 'H') {
                         throughput[2]++;
-						turn_around_time[2] += (sim_time - cust->arrival_time);
+						turn_around_time[2] += (simTime - cust->arrivalTime);
 					}
 				}
 				pthread_mutex_unlock(&reservation_mutex);
@@ -310,20 +310,20 @@ void *sell(void *t_args) {
 				random_wait_time--;
 			}
 		} else {
-			//printf("00:%02d %c%02d Waiting for customer\n",sim_time,seller_type,seller_no);
+			//printf("00:%02d %c%02d Waiting for customer\n",simTime,sellerType,sellerNo);
 		}
 	}
 
-	while(cust!=NULL || seller_queue->size > 0) {
+	while(cust!=NULL || sellerQueue->size > 0) {
 		if(cust==NULL)
-			cust = (customer *) dequeue(seller_queue);
-		printf("00:%02d %c%d Ticket Sale Closed. Customer %c%d%02d Leaves\n",sim_time,seller_type,seller_no,seller_type,seller_no,cust->cust_no);
+			cust = (customer *) dequeue(sellerQueue);
+		printf("00:%02d %c%d Ticket Sale Closed. Customer %c%d%02d Leaves\n",simTime,sellerType,sellerNo,sellerType,sellerNo,cust->custNo);
 		cust = NULL;
 	}
 
-	pthread_mutex_lock(&thread_count_mutex);
-	active_thread--;
-	pthread_mutex_unlock(&thread_count_mutex);
+	pthread_mutex_lock(&threadCount_mutex);
+	activeThread--;
+	pthread_mutex_unlock(&threadCount_mutex);
 	return NULL;
 }
 
@@ -332,31 +332,31 @@ int isSeatAvailable(int row, int col) {
 }
 
 int getSeatIndex(int row, int col) {
-	return row * concert_col + col;
+	return row * concertCol + col;
 } 
 
 int fetchEmptySeatIndexForHighSeller() {
 	int seat_index = -1, row = 0, col = 0;
-	while (row >= 0 && col >= 0 && row < concert_row && col < concert_col) {
+	while (row >= 0 && col >= 0 && row < concertRow && col < concertCol) {
 		if (isSeatAvailable(row, col)) {
 			seat_index = getSeatIndex(row, col);
 			break;
 		}
 		col += 1;
-		if (col == concert_col) { row += 1; col = 0;}
+		if (col == concertCol) { row += 1; col = 0;}
 	}
 	return seat_index;
 }
 
 int fetchEmptySeatIndexForMediumSeller() {
-	int seat_index = -1, row = concert_row/2-1, col = 0, middleSeatIncrement = 1;
-	while (row >= 0 && col >= 0 && row < concert_row && col < concert_col) {
+	int seat_index = -1, row = concertRow/2-1, col = 0, middleSeatIncrement = 1;
+	while (row >= 0 && col >= 0 && row < concertRow && col < concertCol) {
 		if (isSeatAvailable(row, col)) {
 			seat_index = getSeatIndex(row, col);
 			break;
 		}
 		col += 1;
-		if (col == concert_col) {
+		if (col == concertCol) {
 			if (row % 2 == 0) {
 				row = row + middleSeatIncrement;
 			} else {
@@ -370,14 +370,14 @@ int fetchEmptySeatIndexForMediumSeller() {
 }
 
 int fetchEmptySeatIndexForLowSeller() {
-	int seat_index = -1, row = concert_row - 1, col = concert_col - 1;
-	while(row >= 0 && col >= 0 && row < concert_row && col < concert_col) {
+	int seat_index = -1, row = concertRow - 1, col = concertCol - 1;
+	while(row >= 0 && col >= 0 && row < concertRow && col < concertCol) {
 		if (isSeatAvailable(row, col)) {
 			seat_index = getSeatIndex(row, col);
 			break;
 		}
 		col -= 1;
-		if (col == -1) { row -= 1; col += concert_col;}
+		if (col == -1) { row -= 1; col += concertCol;}
 	}
 	return seat_index;
 }
@@ -397,33 +397,33 @@ int fetchEmptySeatIndexBySellerType(char sellerType) {
 
 Queue * create_customer_queue(int num_customers){
 	Queue * customer_queue = createQueue();
-	char cust_no = 0;
+	char custNo = 0;
 	while(num_customers--) {
 		customer *cust = (customer *) malloc(sizeof(customer));
-		cust->cust_no = cust_no;
-		cust->arrival_time = rand() % simulation_duration;
-        at1[cust_no] = cust->arrival_time;
+		cust->custNo = custNo;
+		cust->arrivalTime = rand() % simulationDuration;
+        at1[custNo] = cust->arrivalTime;
 		enqueue(customer_queue,cust);
-		cust_no++;
+		custNo++;
 	}
-	sort(customer_queue, compare_by_arrival_time);
+	sort(customer_queue, compare_by_arrivalTime);
 	Node * ptr = customer_queue->front;
-	cust_no = 0;
+	custNo = 0;
 	while(ptr!=NULL) {
-		cust_no ++;
+		custNo ++;
 		customer *cust = (customer *) ptr->data;
-		cust->cust_no = cust_no;
+		cust->custNo = custNo;
 		ptr = ptr->next;
 	}
 	return customer_queue;
 }
 
-int compare_by_arrival_time(void * data1, void * data2) {
+int compare_by_arrivalTime(void * data1, void * data2) {
 	customer *customer1 = (customer *)data1;
 	customer *customer2 = (customer *)data2;
-	if(customer1->arrival_time < customer2->arrival_time) {
+	if(customer1->arrivalTime < customer2->arrivalTime) {
 		return -1;
-	} else if(customer1->arrival_time == customer2->arrival_time){
+	} else if(customer1->arrivalTime == customer2->arrivalTime){
 		return 0;
 	} else {
 		return 1;
