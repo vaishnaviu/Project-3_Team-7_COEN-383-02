@@ -1,10 +1,11 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<time.h>
-#include<string.h>
-#include<pthread.h>
-#include"queue.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <time.h>
+#include <string.h>
+#include <pthread.h>
+#include "queue.h"
+
 #define hp_seller_count 1
 #define mp_seller_count 3
 #define lp_seller_count 6
