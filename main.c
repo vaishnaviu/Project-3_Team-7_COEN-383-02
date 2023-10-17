@@ -31,7 +31,7 @@ typedef struct customerStruct {
 int simTime;
 int N = 5; //N customers in each seller queue
 int at1[15] = {0}, st1[15] = {0}, tat1[15] = {0}, bt1[15]={0}, rt1[15]={0};
-float throughput[3] = {0};
+float throughput[3] = {0}, processesStarted[3] = {0};
 int response_time[3] = {0}, turn_around_time[3] = {0}; // per seller type 0:L, 1:M, 2:H.
 
 float avg_rt=0, avg_tat=0, num_cust_served = 0;
@@ -149,11 +149,9 @@ int main(int argc, char** argv) {
         avg_rt += rt1[j1];
     }
 
-    printf("\nAverage TAT is %.2f\n", avg_tat/N);
-    printf("Average RT is %.2f\n", avg_rt/N);
-	printf("Average Response time of seller L is %.2f\n", response_time[0]/throughput[0]);
-    printf("Average Response time  of seller M is %.2f\n", response_time[1]/throughput[1]);
-    printf("Average Response time  of seller H is %.2f\n", response_time[2]/throughput[2]);
+	printf("Average Response time of seller L is %.2f\n", response_time[0]/processesStarted[0]);
+    printf("Average Response time  of seller M is %.2f\n", response_time[1]/processesStarted[1]);
+    printf("Average Response time  of seller H is %.2f\n", response_time[2]/processesStarted[2]);
 
 	printf("Average Turn Around time of seller L is %.2f\n", turn_around_time[0]/throughput[0]);
     printf("Average Turn Around time  of seller M is %.2f\n", turn_around_time[1]/throughput[1]);
@@ -262,18 +260,21 @@ void *sell(void *t_args) {
                 bt1[temp1] = random_wait_time;
                 temp1++;
 				response_time[2] += (simTime - cust->arrivalTime);
+				processesStarted[2] += 1;
 				break;
 				case 'M':
 				random_wait_time = (rand()%3) + 2;
                 bt1[temp1] = random_wait_time;
                 temp1++;
 				response_time[1] += (simTime - cust->arrivalTime);
+				processesStarted[1] += 1;
 				break;
 				case 'L':
 				random_wait_time = (rand()%4) + 4;
                 bt1[temp1] = random_wait_time;
                 temp1++;
 				response_time[0] += (simTime - cust->arrivalTime);
+				processesStarted[0] += 1;
 			}
 		}
 		if(cust != NULL) {
